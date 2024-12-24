@@ -164,99 +164,35 @@ def has_bot_activity(submission):
         print(f"Error checking thread history: {e}")
         return True  # Skip thread if we can't check properly
 
+from src.config import SUBREDDITS
+from src.reddit_handler import reddit, process_submission
+from src.openai_handler import check_quota
+from datetime import datetime
+
 def monitor_reddit():
     """Monitor Reddit for relevant posts and comments"""
-    last_quota_check = 0
-    check_interval = 60
-    
     print("\n=== Bot Status ===")
     print("✓ Monitoring subreddits:", ", ".join(SUBREDDITS))
-    print("✓ Looking for keywords:", ", ".join(KEYWORDS))
-    print("\nMonitoring for new posts and comments...")
-    print("Press Ctrl+C to stop the bot\n")
+    print(f"Bot authenticated as: u/{reddit.user.me().name}")
     
     while True:
         try:
-            print("\nConnecting to Reddit stream...", end='\r')
             subreddit = reddit.subreddit('+'.join(SUBREDDITS))
-            
-            # Debug: Print authentication status
-            print(f"Bot authenticated as: u/{reddit.user.me().name}")
-            
-            # Monitor new submissions only
-            print("Waiting for new posts...\n")
-            for submission in subreddit.stream.submissions(skip_existing=True):  # Changed to True
-                # Only process submissions less than 1 hour old for extra safety
-                submission_age = datetime.utcnow().timestamp() - submission.created_utc
-                if submission_age > 3600:  # Skip if older than 1 hour
-                    continue
-                
-                current_time = datetime.fromtimestamp(submission.created_utc)
-                print(f"\n{'='*50}")
-                print(f"Found new post in r/{submission.subreddit.display_name}")  # Added 'new' for clarity
-                print(f"Age: {int(submission_age/60)} minutes old")  # Show how old the post is
-                
-                print(f"Time: {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
-                print(f"Title: {submission.title}")
-                print(f"Author: u/{submission.author}")
-                print(f"URL: https://reddit.com{submission.permalink}")
-                
-                # Check for any bot activity in thread first
-                if has_bot_activity(submission):
-                    print("→ Bot has already participated in this thread - skipping entirely")
-                    continue
-                
-                if should_respond(submission.title + submission.selftext):
-                    print("✓ Keywords detected - Generating response...")
-                    response = generate_response(submission.title + "\n" + submission.selftext)
-                    
-                    if response:
-                        try:
-                            comment = submission.reply(response)
-                            print(f"✓ Successfully posted response in r/{submission.subreddit.display_name}")
-                            print(f"→ Comment link: https://reddit.com{comment.permalink}")
-                            print("Waiting 60s to avoid rate limits...")
-                            time.sleep(60)
-                        except Exception as e:
-                            print(f"✗ Error posting response: {e}")
-
-                # Only check comments if we haven't posted in thread at all
-                print(f"Checking submission comments in r/{submission.subreddit.display_name}...")
-                submission.comments.replace_more(limit=0)
-                for comment in submission.comments.list():
-                    if should_respond(comment.body):
-                        print("→ Found relevant comment to respond to")
-                        print("→ Generating AI response...")
-                        response = generate_response(comment.body)
-                        if response:
-                            try:
-                                reply = comment.reply(response)
-                                print(f"✓ Successfully posted comment response in r/{submission.subreddit.display_name}")
-                                print(f"→ Reply link: https://reddit.com{reply.permalink}")
-                                print("Waiting 60s to avoid rate limits...")
-                                time.sleep(60)
-                            except Exception as e:
-                                print(f"✗ Error posting comment: {e}")
-                
-                print("\nResuming submission monitoring...\n")
-                
+            for submission in subreddit.stream.submissions(skip_existing=True):
+                process_submission(submission)
         except KeyboardInterrupt:
             print("\n\nCtrl+C detected. Shutting down gracefully...")
             return
         except Exception as e:
             print(f"\n✗ Error in monitoring loop: {e}")
             print("Waiting 60s before retry...")
-            time.sleep(60)
 
 if __name__ == "__main__":
     print("=== Reddit Solana Bot Starting ===")
     print("Time:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    
     try:
         monitor_reddit()
     except KeyboardInterrupt:
-        print("\n\nCtrl+C detected. Shutting down gracefully...")
-    except Exception as e:
-        print(f"\nCritical error in main loop: {e}")
+        print("\nBot shutdown complete.")
     finally:
         print("Bot stopped successfully.")
