@@ -1,15 +1,23 @@
 # Reddit Solana Bot
 
-A Reddit bot that monitors cryptocurrency subreddits and responds to posts and comments about Solana and other crypto topics.
+A Reddit bot that monitors cryptocurrency subreddits and responds to posts and comments using AI-generated responses.
+
+## Features
+
+- Interactive curses-based UI for real-time monitoring
+- Multi-threaded response handling
+- Monitors multiple crypto subreddits simultaneously
+- Smart rate limiting and response timing
+- Moderator detection and bot avoidance
+- Comprehensive logging system
+- Configurable keywords and subreddits
 
 ## Setup
 
 1. Clone the repository
-2. Create a virtual environment: `python3 -m venv venv`
-3. Activate the virtual environment: `source venv/bin/activate`
-4. Install dependencies: `pip install -r requirements.txt`
-5. Copy `.env.example` to `.env` and fill in your credentials
-6. Run the bot: `python bot.py`
+2. Run the setup script: `./setup.sh`
+3. Copy `.env.example` to `.env` and fill in your credentials
+4. Run the bot: `python -m src.bot`
 
 ## Configuration
 
@@ -23,10 +31,15 @@ REDDIT_PASSWORD=your_password
 OPENAI_API_KEY=your_openai_key
 ```
 
-## Features
+## Usage
 
-- Monitors multiple crypto subreddits
-- Responds to posts and comments containing specific keywords
-- Uses OpenAI to generate contextual responses
-- Avoids duplicate responses
-- Only responds to new posts
+- The bot runs with a curses interface by default
+- Press 'q' to quit the bot gracefully
+- Logs are saved to `bot.log`
+- Set `USE_CURSES = False` in `bot.py` for terminal-only mode
+
+## Configuration Files
+
+- `config.py`: Subreddits, keywords, and timing settings
+- `.env`: API credentials and secrets
+- `openai_handler.py`: AI response configuration
