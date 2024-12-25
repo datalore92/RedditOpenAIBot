@@ -12,6 +12,9 @@ source venv/bin/activate
 # Install requirements
 pip install -r requirements.txt
 
+# Create src directory if it doesn't exist
+mkdir -p src
+
 echo "Setup complete! To run the bot:"
 echo "1. First activate the virtual environment: source venv/bin/activate"
-echo "2. Then run the bot: python bot.py"
+echo "2. Then run the bot: python -m src.bot"

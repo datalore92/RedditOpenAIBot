@@ -1,4 +1,5 @@
 import re
+import time
 from datetime import datetime
 
 def parse_time_string(time_str):
@@ -13,12 +14,24 @@ def parse_time_string(time_str):
     return sum(float(value) * time_units[unit] for value, unit in parts)
 
 def format_time_remaining(seconds):
-    """Format seconds into readable time"""
+    """Format seconds into a readable time string"""
+    if seconds < 0:
+        return "0s"  # Handle negative seconds gracefully
     if seconds < 60:
-        return f"{seconds:.1f} seconds"
+        return f"{int(seconds)}s"  # Cast to int for precision
     elif seconds < 3600:
-        minutes = seconds / 60
-        return f"{minutes:.1f} minutes"
+        minutes = seconds // 60
+        remaining_seconds = seconds % 60
+        return f"{int(minutes)}m {int(remaining_seconds)}s"
     else:
-        hours = seconds / 3600
-        return f"{hours:.1f} hours"
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        return f"{int(hours)}h {int(minutes)}m"
+
+def format_time_until(future_timestamp):
+    """Format time remaining until a future timestamp"""
+    remaining = max(0, future_timestamp - time.time())
+    if remaining < 60:
+        return f"{int(remaining)} seconds"
+    else:
+        return f"{int(remaining/60)} minutes, {int(remaining%60)} seconds"

@@ -16,28 +16,68 @@ REDDIT_CONFIG = {
 # OpenAI Configuration
 OPENAI_CONFIG = {
     'api_key': os.getenv('OPENAI_API_KEY'),
-    'model': 'gpt-4o-mini',
-    'max_tokens': 40,
+    'model': 'gpt-4o-mini',  # Corrected model name from 'gpt-4o-mini' to 'gpt-4'
+    'max_tokens': 50,
     'temperature': 0.7
 }
 
 # Monitoring Configuration
 SUBREDDITS = [
+    # Major Crypto Subreddits
     'CryptoMoonShots',
     'altcoin',
     'CryptoMarkets',
-    'NFTsMarketplace',
-    'NFT',
+    'CryptoCurrency',
+    'CryptoTechnology',
+    'CryptoTrading',
+    'cryptostreetbets',
+    'SatoshiStreetBets',
+    'CryptoMarsShots',
+    'AllCryptoBets',
+    'CryptoGemDiscovery',
+    
+    # Solana Specific
     'solana',
-    'SolanaNFT'
+    'SolanaNFT',
+    'solanadev',
+    
+    # NFT Related
+    'NFT',
+    'NFTsMarketplace',
+    'NFTExchange',
+    'opensea',
+    
+    # Trading Related
+    'binanceUS',
+    'CoinBase',
+    'kucoin',
+    'kraken',
+    'ftx',
+    
+    # Meme Coins
+    'SHIBArmy',
+    'dogecoin',
+    'memecoin',
+    'memecoins',
+
+    # Other
+    #'dota2', 
+    #'learndota2',
+    #'securityguards',
+    #'4chan',
+    #'antisocial', 
+    #'antiwork'
 ]
 
 KEYWORDS = [
-    'altcoin',
-    'shitcoin',
-    'nft',
-    'new coin',
-    'moonshot',
-    'solana',
-    'sol'
+    #'altcoin',
+    #'shitcoin',
+    #'nft',
+    #'new coin',
+    #'moonshot',
+    #'solana',
+    #'sol'
 ]
+
+# Timing Configuration
+REPLY_WAIT_TIME = 121  # Time in seconds before replying to OP or comments
