@@ -17,108 +17,125 @@ USE_CURSES = True  # Set to False to disable curses interface
 LOG_FILE = 'bot.log'  # Path to the log file
 
 def run_curses_interface(stdscr, log_queue):
-    """Curses interface to display tracked threads and log messages."""
-    curses.curs_set(0)
-    stdscr.nodelay(True)
-    stdscr.timeout(500)  # Refresh every 500ms
-    max_y, max_x = stdscr.getmaxyx()
+    try:
+        curses.curs_set(0)
+        stdscr.nodelay(True)
+        stdscr.timeout(500)  # Refresh every 500ms
+        max_y, max_x = stdscr.getmaxyx()
 
-    # Initialize color pairs
-    curses.start_color()
-    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)      # For errors
-    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)   # For warnings
-    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)    # For normal logs
+        # Initialize color pairs
+        curses.start_color()
+        curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)      # For errors
+        curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)   # For warnings
+        curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)    # For normal logs
 
-    log_buffer = []
+        log_buffer = []
 
-    while True:
-        stdscr.clear()
-        stdscr.addstr(0, 0, "=== Bot Curses UI ===")
-        stdscr.addstr(1, 0, "Tracked Threads:")
-
-        # Acquire the lock before accessing thread_tracker
-        with thread_tracker_lock:
-            tracked_threads = [item for item in thread_tracker.items() if not item[1].replied_to_op]
-
-        # Define per-thread display width
-        thread_display_width = 40  # Adjust based on content
-
-        # Calculate how many threads can fit per row
-        threads_per_row = max_x // thread_display_width
-        if threads_per_row == 0:
-            threads_per_row = 1  # Ensure at least one thread per row
-
-        # Initialize `row` before the loop to ensure it's always defined
-        row = 2
-
-        # Display each tracked thread in a grid layout
-        for index, (submission_id, state) in enumerate(tracked_threads):
-            time_left = max(0, int(state.op_reply_time - time.time()))
-            timer_str = format_time_remaining(time_left)
-            display_str = f"ID: {submission_id[:8]}... - Timer: {timer_str}"
-
-            # Calculate row and column positions
-            display_row = row + (index // threads_per_row) * 2  # Multiply by 2 for spacing between rows
-            display_col = (index % threads_per_row) * thread_display_width
-
-            # Handle potential string length exceeding allocated width
-            if len(display_str) > thread_display_width - 2:
-                display_str = display_str[:thread_display_width - 5] + "..."
-
+        # Add error handling for log display
+        def safe_addstr(y, x, string, *args):
             try:
-                stdscr.addstr(display_row, display_col, display_str)
+                if y < max_y and x < max_x:
+                    # Truncate string to fit window
+                    available_width = max_x - x
+                    if len(string) > available_width:
+                        string = string[:available_width-3] + "..."
+                    stdscr.addstr(y, x, string, *args)
             except curses.error:
-                pass  # Ignore if trying to write outside the window
+                pass
 
-        # Update `log_row` based on the number of active threads
-        log_row = row + ((len(tracked_threads) - 1) // threads_per_row) * 2 + 2
+        while True:
+            stdscr.clear()
+            stdscr.addstr(0, 0, "=== Bot Curses UI ===")
+            stdscr.addstr(1, 0, "Tracked Threads:")
 
-        # Display log messages
-        stdscr.addstr(log_row, 0, "Logs:")
-        log_row += 1
+            # Acquire the lock before accessing thread_tracker
+            with thread_tracker_lock:
+                tracked_threads = [item for item in thread_tracker.items() if not item[1].replied_to_op]
 
-        # Retrieve all log messages from the queue
-        while not log_queue.empty():
-            try:
-                log_message = log_queue.get_nowait()
-                if len(log_buffer) >= MAX_LOG_LINES:
-                    log_buffer.pop(0)  # Remove oldest message
-                log_buffer.append(log_message)
-            except queue.Empty:
-                break
+            # Define per-thread display width
+            thread_display_width = 40  # Adjust based on content
 
-        # Display log buffer
-        start_log = max(0, len(log_buffer) - (max_y - log_row - 2))
-        for msg in log_buffer[start_log:]:
-            if "✗" in msg:
-                stdscr.attron(curses.color_pair(1))
-                stdscr.addstr(log_row, 0, msg[:max_x-1])
-                stdscr.attroff(curses.color_pair(1))
-            elif "⚠️" in msg:
-                stdscr.attron(curses.color_pair(2))
-                stdscr.addstr(log_row, 0, msg[:max_x-1])
-                stdscr.attroff(curses.color_pair(2))
-            else:
-                stdscr.attron(curses.color_pair(3))
-                stdscr.addstr(log_row, 0, msg[:max_x-1])
-                stdscr.attroff(curses.color_pair(3))
+            # Calculate how many threads can fit per row
+            threads_per_row = max_x // thread_display_width
+            if threads_per_row == 0:
+                threads_per_row = 1  # Ensure at least one thread per row
+
+            # Initialize `row` before the loop to ensure it's always defined
+            row = 2
+
+            # Display each tracked thread in a grid layout
+            for index, (submission_id, state) in enumerate(tracked_threads):
+                time_left = max(0, int(state.op_reply_time - time.time()))
+                timer_str = format_time_remaining(time_left)
+                display_str = f"ID: {submission_id[:8]}... - Timer: {timer_str}"
+
+                # Calculate row and column positions
+                display_row = row + (index // threads_per_row) * 2  # Multiply by 2 for spacing between rows
+                display_col = (index % threads_per_row) * thread_display_width
+
+                # Handle potential string length exceeding allocated width
+                if len(display_str) > thread_display_width - 2:
+                    display_str = display_str[:thread_display_width - 5] + "..."
+
+                try:
+                    stdscr.addstr(display_row, display_col, display_str)
+                except curses.error:
+                    pass  # Ignore if trying to write outside the window
+
+            # Update `log_row` based on the number of active threads
+            log_row = row + ((len(tracked_threads) - 1) // threads_per_row) * 2 + 2
+
+            # Display log messages
+            stdscr.addstr(log_row, 0, "Logs:")
             log_row += 1
-            if log_row >= max_y - 1:
-                break
 
-        stdscr.addstr(max_y-1, 0, "Press 'q' to quit.")
-        
-        stdscr.refresh()
+            # Retrieve all log messages from the queue
+            while not log_queue.empty():
+                try:
+                    log_message = log_queue.get_nowait()
+                    if len(log_buffer) >= MAX_LOG_LINES:
+                        log_buffer.pop(0)  # Remove oldest message
+                    log_buffer.append(log_message)
+                except queue.Empty:
+                    break
 
-        # Check for user exit
-        try:
-            key = stdscr.getch()
-            if key == ord('q'):
-                break
-        except:
-            pass
+            # Display log buffer
+            start_log = max(0, len(log_buffer) - (max_y - log_row - 2))
+            for msg in log_buffer[start_log:]:
+                if "✗" in msg:
+                    stdscr.attron(curses.color_pair(1))
+                    safe_addstr(log_row, 0, msg[:max_x-1])
+                    stdscr.attroff(curses.color_pair(1))
+                elif "⚠️" in msg:
+                    stdscr.attron(curses.color_pair(2))
+                    safe_addstr(log_row, 0, msg[:max_x-1])
+                    stdscr.attroff(curses.color_pair(2))
+                else:
+                    stdscr.attron(curses.color_pair(3))
+                    safe_addstr(log_row, 0, msg[:max_x-1])
+                    stdscr.attroff(curses.color_pair(3))
+                log_row += 1
+                if log_row >= max_y - 1:
+                    break
 
-        time.sleep(0.1)
+            stdscr.addstr(max_y-1, 0, "Press 'q' to quit.")
+            
+            stdscr.refresh()
+
+            # Check for user exit
+            try:
+                key = stdscr.getch()
+                if key == ord('q'):
+                    break
+            except:
+                pass
+
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        return
+    except Exception as e:
+        print(f"Curses error: {e}")
+        return
 
 def logger(log_queue, message):
     """Enqueue log messages and write them to a log file."""

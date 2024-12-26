@@ -1,12 +1,48 @@
 import praw
 from datetime import datetime
 import time
+import os
 from .config import REDDIT_CONFIG, KEYWORDS, SUBREDDITS, REPLY_WAIT_TIME
 from .utils import format_time_until, format_time_remaining
 from .openai_handler import generate_response
 import threading
 
-reddit = praw.Reddit(**REDDIT_CONFIG)
+def force_fresh_auth():
+    """Force fresh authentication by clearing PRAW token files"""
+    token_paths = [
+        os.path.expanduser('~/.config/praw.ini'),
+        os.path.expanduser('~/.cache/praw.ini'),
+        os.path.expanduser('~/.local/share/praw.ini')
+    ]
+    for path in token_paths:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+
+# Force fresh authentication before creating client
+force_fresh_auth()
+
+# Initialize Reddit client with fresh auth
+reddit = praw.Reddit(
+    client_id=REDDIT_CONFIG['client_id'],
+    client_secret=REDDIT_CONFIG['client_secret'],
+    user_agent=REDDIT_CONFIG['user_agent'],
+    username=REDDIT_CONFIG['username'],
+    password=REDDIT_CONFIG['password'],
+    ratelimit_seconds=300,
+    check_for_updates=False,
+    check_for_async=False
+)
+
+# Verify authentication
+try:
+    username = reddit.user.me().name
+    print(f"Authenticated as: {username}")
+except Exception as e:
+    print(f"Authentication failed: {e}")
+    raise
 
 # Track threads and their states
 thread_tracker = {}
@@ -22,10 +58,21 @@ class ThreadState:
         self.tracked_comments = {}
         self.done = False
         self.last_not_met_log_time = 0  # Added to track last "not met" log time
+        self.last_message_times = {}  # Track when messages were last logged
     
     @property
     def is_complete(self):
         return self.replied_to_op and all(state['replied_to_comment'] for state in self.tracked_comments.values())
+
+    def should_log(self, message_type, throttle_seconds=10):
+        """Check if we should log this message type based on throttling"""
+        current_time = time.time()
+        last_time = self.last_message_times.get(message_type, 0)
+        
+        if current_time - last_time >= throttle_seconds:
+            self.last_message_times[message_type] = current_time
+            return True
+        return False
 
 def is_moderator(comment, subreddit, log):
     """Check if user is a moderator of the subreddit"""
@@ -39,7 +86,11 @@ def is_moderator(comment, subreddit, log):
         
         is_mod = author_name in subreddit._mod_cache
         if is_mod:
-            log("⚠️  WARNING: %s is a moderator - skipping", comment.author.name)
+            # Only log mod warnings once per mod per thread
+            mod_warn_key = f"mod_warn_{author_name}"
+            if not hasattr(subreddit, mod_warn_key):
+                setattr(subreddit, mod_warn_key, True)
+                log("⚠️  WARNING: %s is a moderator - skipping", comment.author.name)
         return is_mod
     except Exception as e:
         log("✗ Error checking moderator status: %s", str(e))
@@ -111,65 +162,84 @@ def process_submission(submission, state=None, force_reply=False, log=None):
         # **Offload reply operation to a separate thread**
         reply_thread = threading.Thread(target=reply_to_op, args=(submission, state, current_time, log))
         reply_thread.start()
-        
 
-    # Handle comment replies
-    if state and state.replied_to_op and not state.done:
-        log("→ Looking for comments to reply to...")
-        
-        for comment in submission.comments.list():
-            if not comment.author:
-                log("→ Skipping deleted comment")
-                continue
-                
-            # Hard-coded check for AutoModerator
-            if comment.author.name.lower() == "automoderator":
-                log("→ Skipping AutoModerator comment")
-                continue
-            
-            # Check moderator status FIRST, before any other processing
-            if is_moderator(comment, submission.subreddit, log):
-                continue
-            
-            with thread_tracker_lock:
-                # Initialize comment state if not tracked
-                if comment.id not in state.tracked_comments:
-                    state.tracked_comments[comment.id] = {
-                        'reply_time': current_time + REPLY_WAIT_TIME,  # Set future timestamp for comment reply
-                        'replied_to_comment': False
-                    }
-                    log("→ Will reply to comment %s in %d seconds", comment.id, REPLY_WAIT_TIME)
-        
-            comment_state = state.tracked_comments[comment.id]
-            
-            # Check if it's time to reply to the comment
-            if not comment_state['replied_to_comment'] and current_time >= comment_state['reply_time']:
-                # **Offload comment reply to a separate thread**
-                comment_reply_thread = threading.Thread(target=reply_to_comment, args=(comment, comment_state, log))
-                comment_reply_thread.start()
-        
-        # **Ensure threads remain tracked until all replies are done**
+        # Remove the thread from tracking after scheduling OP reply
         with thread_tracker_lock:
-            if state.is_complete:
-                log("\n✓ Finished with thread: %s", state.submission.title[:50])
-                thread_tracker.pop(submission.id, None)  # Remove now that replies are done
+            if submission.id in thread_tracker:
+                log("\n✓ Done with thread: %s", submission.title[:50])
+                thread_tracker.pop(submission.id, None)
+        return
+
+    # Comment reply handling no longer needed:
+    # ...commented out or removed code that processes comments...
+
+def has_bot_replied_to(item, bot_name=None, log=None):
+    """Check if bot has already replied to a specific post/comment"""
+    if not bot_name:
+        bot_name = reddit.user.me().name.lower()
+    try:
+        # Force-refresh the comments
+        if hasattr(item, 'refresh'):
+            item.refresh()
+        
+        # Get all replies
+        if hasattr(item, 'comments'):  # For submissions
+            replies = item.comments.list()
+        else:  # For comments
+            item.refresh()
+            replies = item.replies.list()
+        
+        # Check if bot has replied
+        has_replied = any(
+            reply.author and reply.author.name.lower() == bot_name
+            for reply in replies
+        )
+        
+        if has_replied and log:
+            log("⚠️  Bot has already replied to this item - skipping")
+        
+        return has_replied
+    except Exception as e:
+        if log:
+            log("✗ Error checking reply history: %s", str(e))
+        return True  # Assume replied on error to be safe
 
 def reply_to_op(submission, state, current_time, log):
-    """Handle replying to the OP"""
+    """Handle replying to the OP with rate limit handling"""
     try:
+        # Check for existing reply first
+        if has_bot_replied_to(submission, log=log):
+            with thread_tracker_lock:
+                state.replied_to_op = True
+            return
+
         delay = current_time - state.op_reply_time
         log("→ Processing reply %.1fs %s", delay, "overdue" if delay > 0 else "early")
         
-        response = generate_response(submission.title + "\n" + submission.selftext)
-        if response:
-            comment = submission.reply(response)
-            log("✓ Successfully replied to OP")
-            log("→ Comment link: https://reddit.com%s", comment.permalink)
-            with thread_tracker_lock:
-                state.replied_to_op = True
-        else:
-            log("✗ Failed to generate response")
-            
+        # Add rate limit handling
+        max_retries = 3
+        retry_delay = 60  # Wait 60 seconds between retries
+        
+        for attempt in range(max_retries):
+            try:
+                response = generate_response(submission.title + "\n" + submission.selftext)
+                if response:
+                    comment = submission.reply(response)
+                    log("✓ Successfully replied to OP")
+                    log("→ Comment link: https://reddit.com%s", comment.permalink)
+                    with thread_tracker_lock:
+                        state.replied_to_op = True
+                    return
+            except Exception as e:
+                if "RATELIMIT" in str(e):
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (attempt + 1)
+                        log(f"Rate limited. Waiting {wait_time} seconds before retry...")
+                        time.sleep(wait_time)
+                        continue
+                log("✗ Error replying to OP: %s", str(e))
+                break
+                
     except Exception as e:
         log("✗ Error replying to OP: %s", str(e))
 

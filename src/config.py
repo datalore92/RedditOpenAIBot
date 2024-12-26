@@ -27,7 +27,7 @@ SUBREDDITS = [
     'CryptoMoonShots',
     'altcoin',
     'CryptoMarkets',
-    'CryptoCurrency',
+    #'CryptoCurrency',
     'CryptoTechnology',
     'CryptoTrading',
     'cryptostreetbets',
@@ -38,14 +38,14 @@ SUBREDDITS = [
     
     # Solana Specific
     'solana',
-    'SolanaNFT',
+    #'SolanaNFT',
     'solanadev',
     
     # NFT Related
-    'NFT',
-    'NFTsMarketplace',
-    'NFTExchange',
-    'opensea',
+    #'NFT',
+    #'NFTsMarketplace',
+    #'NFTExchange',
+    #'opensea',
     
     # Trading Related
     'binanceUS',
