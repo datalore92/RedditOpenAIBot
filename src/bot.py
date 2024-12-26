@@ -11,10 +11,10 @@ from .reddit_handler import thread_tracker_lock
 MAX_LOG_LINES = 100  # Maximum number of log messages to keep
 
 # Configuration Variable
-USE_CURSES = True  # Set to False to disable curses interface
+USE_CURSES = False  # Disable curses interface in container
 
 # Log File Configuration
-LOG_FILE = 'bot.log'  # Path to the log file
+LOG_FILE = '/app/logs/bot.log'  # Path to the log file
 
 def run_curses_interface(stdscr, log_queue):
     try:
@@ -141,17 +141,20 @@ def logger(log_queue, message):
     """Enqueue log messages and write them to a log file."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     formatted_message = f"[{timestamp}] {message}"
-    # Enqueue the message for the curses interface
-    log_queue.put(formatted_message)
     
-    # Write the message to the log file
+    # Write to console
+    print(formatted_message)
+    
+    # Write to log file
     try:
         with open(LOG_FILE, 'a') as f:
             f.write(formatted_message + "\n")
+            f.flush()  # Force write to disk
     except Exception as e:
-        # If logging to file fails, enqueue an error message
-        error_message = f"[{timestamp}] ✗ Failed to write to log file: {e}"
-        log_queue.put(error_message)
+        print(f"Error writing to log file: {e}")
+    
+    # Enqueue for UI if needed
+    log_queue.put(formatted_message)
 
 def monitor_reddit_process(log_queue):
     """Monitor Reddit and process submissions."""
