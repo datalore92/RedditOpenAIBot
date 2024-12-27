@@ -34,7 +34,11 @@ def reply_to_op(submission, state, scheduled_time, log, reddit_instance):
                 state.replied_to_op = True
             return
 
-        response = generate_response(submission.title + "\n" + submission.selftext)
+        # Initial reaction to the post
+        response = generate_response(
+            submission.title + "\n" + submission.selftext,
+            context="Imagine you are the first person to reply to this post. Give your initial reaction."
+        )
         if response:
             log("\n%s", '='*50)  # Add separator before success message
             comment = submission.reply(response)
@@ -48,24 +52,31 @@ def reply_to_op(submission, state, scheduled_time, log, reddit_instance):
 
 def reply_to_comment(comment, state, current_time, log, reddit_instance):
     """Handle replying to a comment"""
+    from .thread_handler import thread_tracker_lock  # Add this import
+    
     try:
         if has_bot_replied_to(comment, reddit_instance.user.me().name, log):
             return
 
         log("→ Processing reply to u/%s...", comment.author.name)
         
-        # Build full context including original post and comment
+        # Build full context including conversation flow
         original_post = comment.submission
-        context = f"""Original Post Title: {original_post.title}
-Original Post Content: {original_post.selftext}
+        context = f"""CONTEXT: This is a conversation:
+1. Someone posted: "{original_post.title}"
+   Their post said: "{original_post.selftext}"
+2. Then u/{comment.author.name} replied saying: "{comment.body}"
+3. You are now replying to u/{comment.author.name}'s comment.
 
-Comment by u/{comment.author.name}: {comment.body}"""
+You are casually joining this conversation. Reply to what u/{comment.author.name} said, not to the original post."""
         
-        # Generate response with full context
+        # Engaging in the discussion
         response = generate_response(context)
         if response:
             log("\n%s", '='*50)  # Add separator before success message
             reply = comment.reply(response)
+            with thread_tracker_lock:  # Add lock protection
+                state.responded_to_comments.add(comment.id)
             log("✓ Successfully replied to comment by u/%s", comment.author.name)
             log("→ Comment link: https://reddit.com%s", reply.permalink)
             

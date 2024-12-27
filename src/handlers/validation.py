@@ -1,3 +1,5 @@
+from ..config import KEYWORDS  # Add this import
+
 # Track warned accounts per thread
 warned_accounts = {}
 

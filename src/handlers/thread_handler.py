@@ -46,38 +46,45 @@ def track_new_thread(submission, log, reddit_instance):
 def monitor_thread_comments(submission, state, log, reddit_instance):
     """Continuously monitor a thread for new comments"""
     pending_comments = {}  # Add this to track pending comments
+    has_replied_to_comment = False  # Add this flag
     
     while not state.is_complete:
         try:
             fresh_submission = reddit_instance.submission(id=submission.id)
             fresh_submission.comments.replace_more(limit=0)
             
-            if state.replied_to_op and len(state.responded_to_comments) > 0:
+            # Stop if we've replied to both OP and one comment
+            if state.replied_to_op and has_replied_to_comment:
                 log("\n[%s]", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                log("→ Stopping monitoring after replying to comment in: %s", submission.title[:50])
+                log("→ Stopping monitoring after replying to one comment in: %s", submission.title[:50])
                 state.waiting_for_op_responses = False
                 remove_thread(submission.id, log)
                 break
             
-            for comment in fresh_submission.comments:
-                if (comment.id not in state.responded_to_comments and 
-                    comment.id not in pending_comments):  # Only process if not already pending
-                    
-                    processed = process_comment(comment, state, reddit_instance, log)
-                    if processed:
-                        pending_comments[comment.id] = processed
-            
-            # Check pending comments for reply timing
-            current_time = time.time()
-            for comment_id, pending_comment in list(pending_comments.items()):
-                if current_time >= pending_comment.reply_time:
-                    reply_thread = threading.Thread(
-                        target=reply_to_comment,
-                        args=(pending_comment, state, current_time, log, reddit_instance)
-                    )
-                    reply_thread.start()
-                    state.responded_to_comments.add(comment_id)
-                    pending_comments.pop(comment_id)
+            # Only look for comments if we haven't replied to one yet
+            if not has_replied_to_comment:
+                for comment in fresh_submission.comments:
+                    if (comment.id not in state.responded_to_comments and 
+                        comment.id not in pending_comments):
+                        
+                        processed = process_comment(comment, state, reddit_instance, log)
+                        if processed:
+                            pending_comments[comment.id] = processed
+                            break  # Only track one comment at a time
+                
+                # Process the single pending comment
+                current_time = time.time()
+                for comment_id, pending_comment in list(pending_comments.items()):
+                    if current_time >= pending_comment.reply_time:
+                        reply_thread = threading.Thread(
+                            target=reply_to_comment,
+                            args=(pending_comment, state, current_time, log, reddit_instance)
+                        )
+                        reply_thread.start()
+                        state.responded_to_comments.add(comment_id)
+                        pending_comments.pop(comment_id)
+                        has_replied_to_comment = True  # Set flag after replying
+                        break  # Exit after replying to one comment
 
             time.sleep(10)
         except Exception as e:
