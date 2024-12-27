@@ -1,24 +1,11 @@
-import re
 import time
-from datetime import datetime
-
-def parse_time_string(time_str):
-    """Convert time string to seconds"""
-    time_units = {
-        'ms': 0.001,
-        's': 1,
-        'm': 60,
-        'h': 3600,
-    }
-    parts = re.findall(r'(\d+)([a-z]+)', time_str.lower())
-    return sum(float(value) * time_units[unit] for value, unit in parts)
 
 def format_time_remaining(seconds):
     """Format seconds into a readable time string"""
     if seconds < 0:
-        return "0s"  # Handle negative seconds gracefully
+        return "0s"
     if seconds < 60:
-        return f"{int(seconds)}s"  # Cast to int for precision
+        return f"{int(seconds)}s"
     elif seconds < 3600:
         minutes = seconds // 60
         remaining_seconds = seconds % 60
@@ -35,3 +22,9 @@ def format_time_until(future_timestamp):
         return f"{int(remaining)} seconds"
     else:
         return f"{int(remaining/60)} minutes, {int(remaining%60)} seconds"
+
+def sleep_with_check(seconds, check_interval=0.1):
+    """Sleep for specified duration while allowing interrupts"""
+    end_time = time.time() + seconds
+    while time.time() < end_time:
+        time.sleep(min(check_interval, end_time - time.time()))

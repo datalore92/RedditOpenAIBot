@@ -2,23 +2,22 @@
 
 A Reddit bot that monitors cryptocurrency subreddits and responds to posts and comments using AI-generated responses. Runs in Docker with VPN protection.
 
-## To-Do
-- Fix the OpenVPN logging. 
-- 
-
 ## Features
-
-- Interactive curses-based UI for real-time monitoring
+- Console-based logging with real-time status updates
 - Multi-threaded response handling
 - Monitors multiple crypto subreddits simultaneously
 - Smart rate limiting and response timing
-- Moderator detection and bot avoidance
-- Comprehensive logging system
-- Configurable keywords and subreddits
-- VPN integration for privacy and security
-- Dockerized deployment for easy setup
-- Automatic VPN connection verification
-- IP rotation support via Windscribe VPN
+- Moderator and bot detection
+- Thread state tracking
+- VPN integration for privacy
+- Docker containerization
+
+## New Features
+- Improved comment tracking and response timing
+- Full context awareness for AI responses (includes original post content)
+- Smart duplicate comment detection
+- Automatic thread cleanup after responses
+- Better moderator and system account detection
 
 ## Prerequisites
 
@@ -98,7 +97,7 @@ VPN_REGION=us
 
 - View logs in real-time: `docker-compose logs -f`
 - Check VPN status: `docker exec reddit-bot-01 ip addr show tun0`
-- Monitor bot status through the curses interface
+- Monitor bot status through the console output and logs
 - Logs are stored in:
   - `logs/bot.log`: Bot activity
   - `logs/status.log`: OpenVPN status
@@ -184,3 +183,49 @@ The build cache:
 - Is separate from the images themselves
 - Located in Docker's data directory
 - Can be viewed with `docker builder ls`
+
+## Development
+
+### Git Commands
+```bash
+# Check status of changes
+git status
+
+# Add changes
+git add .
+
+# Commit changes with message
+git commit -m "Your descriptive message here"
+
+# Push to GitHub
+git push origin main
+```
+
+Remember to:
+- Use clear commit messages
+- Never commit sensitive files
+- Update .gitignore as needed
+- Generate new access token if expired
+
+## Bot Behavior
+- Waits 2 minutes before replying to new posts
+- Monitors each post for comments
+- Waits 2 minutes before replying to comments
+- Stops monitoring a thread after:
+  1. Replying to the original post
+  2. Replying to one comment
+- Avoids replying to:
+  - Moderators
+  - AutoModerator
+  - CoinbaseSupport
+  - Solana-ModTeam
+  - Other bots
+  - Its own comments
+
+## Console Output
+- Real-time thread discovery
+- Comment detection and timing
+- Success/failure notifications
+- VPN status updates
+- Error reporting
+- Thread completion status

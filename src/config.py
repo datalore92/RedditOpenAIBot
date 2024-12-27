@@ -80,4 +80,4 @@ KEYWORDS = [
 ]
 
 # Timing Configuration
-REPLY_WAIT_TIME = 121  # Time in seconds before replying to OP or comments
+REPLY_WAIT_TIME = 120  # 2 minutes in seconds
