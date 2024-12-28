@@ -3,7 +3,7 @@ import time
 import threading
 from ..config import REPLY_WAIT_TIME
 from ..utils.time_utils import format_time_until
-from .reply_handler import reply_to_op, reply_to_comment
+from .reply_handler import reply_to_op, reply_to_comment, upvote_thread_items
 from .validation import is_valid_comment, is_moderator
 from .thread_state import ThreadState, thread_tracker, thread_tracker_lock
 from .comment_handler import process_comment
